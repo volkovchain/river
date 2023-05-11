@@ -1,0 +1,25 @@
+CREATE TABLE IF NOT EXISTS employers (
+    id BIGINT PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    addr TEXT NOT NULL,
+    amount_salary INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    id BIGINT PRIMARY KEY AUTOINCREMENT,
+    salary_id BIGINT,
+    employee_id BIGINT,
+    amount INT,
+    status VARCHAR(16),
+    error TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(salary_id) REFERENCES salaries(id),
+    FOREIGN KEY(employee_id) REFERENCES employers(id)
+);
+
+CREATE TABLE IF NOT EXISTS salaries (
+    id BIGINT PIMARY KEY AUTOINCREMENT,
+    status VARCHAR(16),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+
