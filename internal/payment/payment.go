@@ -100,16 +100,18 @@ func (s *Service) Send(ctx context.Context, to common.Address, valueAmount int64
 	}
 
 	nonce, err := s.client.PendingNonceAt(ctx, fromAddress)
+	if err != nil {
+		return err
+	}
 	log.Printf("nonce %d\n", nonce)
 
 	value := big.NewInt(0)
 	gasPrice, err := s.client.SuggestGasPrice(ctx)
-	log.Printf("gas price %d\n", gasPrice.Int64())
-
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
+	log.Printf("gas price %d\n", gasPrice.Int64())
 
 	transferFnSignature := []byte("transfer(address,uint256)")
 
@@ -139,12 +141,6 @@ func (s *Service) Send(ctx context.Context, to common.Address, valueAmount int64
 	gasLimit := uint64(100_000)
 	log.Printf("gas limit - %d\n", gasLimit)
 
-	if err != nil {
-		log.Println(err)
-		return err
-
-	}
-
 	tx := types.NewTransaction(nonce, tokenAddress, value, gasLimit, gasPrice, data)
 
 	chainID, err := s.client.NetworkID(ctx)
@@ -168,7 +164,9 @@ func (s *Service) Send(ctx context.Context, to common.Address, valueAmount int64
 		log.Println(err)
 		return err
 	}
-	ctx, _ = context.WithTimeout(ctx, 2*time.Second)
+
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
 
 	var retryCount = 0
 	for {
@@ -194,7 +192,8 @@ func (s *Service) Send(ctx context.Context, to common.Address, valueAmount int64
 }
 
 func (s *Service) FetchTokenBalance(tokenAddress common.Address, address common.Address) (*big.Int, error) {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	out, err := s.abiCall(ctx, &(tokenAddress), MethodErc20Balance, address)
 	if err != nil {
@@ -205,7 +204,6 @@ func (s *Service) FetchTokenBalance(tokenAddress common.Address, address common.
 }
 
 func (s *Service) encodeAbiCall(method string, params ...interface{}) ([]byte, error) {
-
 	input, err := s.abi.Pack(method, params...)
 	if err != nil {
 		return nil, err
@@ -219,7 +217,6 @@ func (s *Service) abiCall(
 	method string,
 	params ...interface{},
 ) ([]interface{}, error) {
-
 	input, err := s.encodeAbiCall(method, params...)
 	if err != nil {
 		return nil, err

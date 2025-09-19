@@ -7,11 +7,14 @@ import (
 	"log"
 	"os"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"gitlab.midas.dev/back/river/db"
-	"gitlab.midas.dev/back/river/internal/payment"
-	"gitlab.midas.dev/back/river/internal/salary"
+	"gitlab.midas.dev/back/river/internal/client/ethereum"
+	"gitlab.midas.dev/back/river/internal/config"
+	"gitlab.midas.dev/back/river/internal/handler"
+	"gitlab.midas.dev/back/river/internal/service/payment"
+	"gitlab.midas.dev/back/river/internal/service/salary"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -21,9 +24,14 @@ var rootCmd = &cobra.Command{
 	Long:  ``,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		// Load configuration
+		cfg, err := config.Load()
+		if err != nil {
+			log.Fatalf("Failed to load configuration: %v", err)
+		}
 
-		dbDriver, err := sql.Open("sqlite3", "./main.db")
-
+		// Open database connection
+		dbDriver, err := sql.Open("sqlite3", cfg.DatabasePath)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -35,43 +43,43 @@ var rootCmd = &cobra.Command{
 			}
 		}()
 
+		// Initialize database schema
 		_, err = dbDriver.Exec(db.Schema)
 		if err != nil {
 			log.Printf("%q: %s\n", err, db.Schema)
 			return
 		}
 
-		node := viper.GetString("NODE")
-		if node == "" {
-			log.Fatal("Environment variable NODE is required")
-		}
-
-		privateKeys := viper.GetStringSlice("PRIVATE_KEYS")
-		if len(privateKeys) == 0 {
-			log.Fatal("Environment variable PRIVATE_KEYS is required")
-		}
-
-		paymentService := payment.New(node, privateKeys)
+		// Initialize repositories
 		salaryRepository := db.NewSalaryRepository(dbDriver)
+
+		// Initialize Ethereum client
+		ethClient, err := ethclient.Dial(cfg.Node)
+		if err != nil {
+			log.Fatal(err)
+		}
+		client := ethereum.NewClient(ethClient)
+
+		// Initialize services
+		paymentService := payment.New(client)
 		salaryService := salary.New(salaryRepository, paymentService)
 
-		isrepay := false
+		// Initialize handler
+		h := handler.New(dbDriver, salaryService, cfg)
+
+		// Check if this is a repay command
+		isRepay := false
 		for _, v := range args {
 			if v == "repay" {
-				isrepay = true
+				isRepay = true
 			}
 		}
 
-		if isrepay {
-			err = salaryService.Repay(context.Background())
-		} else {
-			err = salaryService.Pay(context.Background())
-		}
-
+		// Execute the command
+		err = h.Pay(context.Background(), isRepay)
 		if err != nil {
 			fmt.Println(err)
 		}
-
 	},
 }
 

@@ -10,8 +10,8 @@ type PaymentStatus string
 
 const (
 	CreatedStatus    PaymentStatus = "created"
-	ProcessingStatus               = "processing"
-	DoneStatus                     = "done"
+	ProcessingStatus PaymentStatus = "processing"
+	DoneStatus       PaymentStatus = "done"
 )
 
 type EmployeeRepository interface {

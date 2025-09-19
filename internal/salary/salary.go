@@ -39,7 +39,6 @@ func (s *Service) Repay(ctx context.Context) error {
 }
 
 func (s *Service) Pay(ctx context.Context) error {
-
 	err := s.startPay(ctx)
 
 	if err != nil {
@@ -94,7 +93,7 @@ func (s *Service) pay(ctx context.Context, salaries []*entity.Salary) error {
 
 		// Time wait - range 30 minute
 		var tWait time.Duration
-		if tWait > 1 {
+		if countPayments > 0 {
 			tWait = time.Duration(math.Round(float64((30 * 60) / countPayments)))
 		}
 		log.Printf("wait - %d seconds", tWait)
@@ -105,14 +104,7 @@ func (s *Service) pay(ctx context.Context, salaries []*entity.Salary) error {
 				if err != nil {
 					countErrPayments++
 					log.Println(err)
-					return err
-				}
-			}
-
-			if paymt.Status == string(repository.CreatedStatus) {
-				if err != nil {
-					countErrPayments++
-					return err
+					continue
 				}
 			}
 
@@ -126,20 +118,18 @@ func (s *Service) pay(ctx context.Context, salaries []*entity.Salary) error {
 			err = s.paymentService.Send(ctx, addr, paymt.Amount)
 
 			if err == nil {
-
 				err := s.salaryRepository.UpdatePaymentStatusToDone(ctx, paymt.ID)
 				if err != nil {
 					countErrPayments++
 					log.Println(err)
-					return err
 				}
 			} else {
 				countErrPayments++
+				log.Printf("payment error: %v", err)
 			}
 			time.Sleep(tWait * time.Second)
 		}
 		if countErrPayments == 0 {
-
 			err = s.salaryRepository.UpdateStatusToDone(ctx, salary.ID)
 
 			if err != nil {
@@ -147,7 +137,6 @@ func (s *Service) pay(ctx context.Context, salaries []*entity.Salary) error {
 				return err
 			}
 		}
-
 	}
 	return nil
 }
